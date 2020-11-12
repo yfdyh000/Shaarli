@@ -2,7 +2,7 @@
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-use Shaarli\ApplicationUtils;
+use Shaarli\Helper\ApplicationUtils;
 use Shaarli\Security\SessionManager;
 
 // Set 'UTC' as the default timezone if it is not defined in php.ini
@@ -60,6 +60,7 @@ ini_set('session.use_only_cookies', 1);
 ini_set('session.use_trans_sid', false);
 
 define('SHAARLI_VERSION', ApplicationUtils::getVersion(__DIR__ .'/'. ApplicationUtils::$VERSION_FILE));
+define('SHAARLI_MUTEX_FILE', __FILE__);
 
 session_name('shaarli');
 // Start session if needed (Some server auto-start sessions).

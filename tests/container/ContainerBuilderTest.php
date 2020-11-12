@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Shaarli\Container;
 
+use Psr\Log\LoggerInterface;
 use Shaarli\Bookmark\BookmarkServiceInterface;
 use Shaarli\Config\ConfigManager;
 use Shaarli\Feed\FeedBuilder;
@@ -12,6 +13,7 @@ use Shaarli\Front\Controller\Visitor\ErrorController;
 use Shaarli\Front\Controller\Visitor\ErrorNotFoundController;
 use Shaarli\History;
 use Shaarli\Http\HttpAccess;
+use Shaarli\Http\MetadataRetriever;
 use Shaarli\Netscape\NetscapeBookmarkUtils;
 use Shaarli\Plugin\PluginManager;
 use Shaarli\Render\PageBuilder;
@@ -54,7 +56,8 @@ class ContainerBuilderTest extends TestCase
             $this->conf,
             $this->sessionManager,
             $this->cookieManager,
-            $this->loginManager
+            $this->loginManager,
+            $this->createMock(LoggerInterface::class)
         );
     }
 
@@ -72,6 +75,8 @@ class ContainerBuilderTest extends TestCase
         static::assertInstanceOf(History::class, $container->history);
         static::assertInstanceOf(HttpAccess::class, $container->httpAccess);
         static::assertInstanceOf(LoginManager::class, $container->loginManager);
+        static::assertInstanceOf(LoggerInterface::class, $container->logger);
+        static::assertInstanceOf(MetadataRetriever::class, $container->metadataRetriever);
         static::assertInstanceOf(NetscapeBookmarkUtils::class, $container->netscapeBookmarkUtils);
         static::assertInstanceOf(PageBuilder::class, $container->pageBuilder);
         static::assertInstanceOf(PageCacheManager::class, $container->pageCacheManager);

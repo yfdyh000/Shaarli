@@ -34,7 +34,7 @@ class ThumbnailsController extends ShaarliAdminController
         $this->assignView('ids', $ids);
         $this->assignView(
             'pagetitle',
-            t('Thumbnails update') .' - '. $this->container->conf->get('general.title', 'Shaarli')
+            t('Thumbnails update') . ' - ' . $this->container->conf->get('general.title', 'Shaarli')
         );
 
         return $response->write($this->render(TemplatePage::THUMBNAILS));
@@ -52,7 +52,7 @@ class ThumbnailsController extends ShaarliAdminController
         }
 
         try {
-            $bookmark = $this->container->bookmarkService->get($id);
+            $bookmark = $this->container->bookmarkService->get((int) $id);
         } catch (BookmarkNotFoundException $e) {
             return $response->withStatus(404);
         }

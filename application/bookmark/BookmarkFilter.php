@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Shaarli\Bookmark;
 
 use Exception;
 use Shaarli\Bookmark\Exception\BookmarkNotFoundException;
+use Shaarli\Config\ConfigManager;
 
 /**
  * Class LinkFilter.
@@ -56,12 +59,16 @@ class BookmarkFilter
      */
     private $bookmarks;
 
+    /** @var ConfigManager */
+    protected $conf;
+
     /**
      * @param Bookmark[] $bookmarks initialization.
      */
-    public function __construct($bookmarks)
+    public function __construct($bookmarks, ConfigManager $conf)
     {
         $this->bookmarks = $bookmarks;
+        $this->conf = $conf;
     }
 
     /**
@@ -77,8 +84,13 @@ class BookmarkFilter
      *
      * @throws BookmarkNotFoundException
      */
-    public function filter($type, $request, $casesensitive = false, $visibility = 'all', $untaggedonly = false)
-    {
+    public function filter(
+        string $type,
+        $request,
+        bool $casesensitive = false,
+        string $visibility = 'all',
+        bool $untaggedonly = false
+    ) {
         if (!in_array($visibility, ['all', 'public', 'private'])) {
             $visibility = 'all';
         }
@@ -100,10 +112,14 @@ class BookmarkFilter
                     $filtered = $this->bookmarks;
                 }
                 if (!empty($request[0])) {
-                    $filtered = (new BookmarkFilter($filtered))->filterTags($request[0], $casesensitive, $visibility);
+                    $filtered = (new BookmarkFilter($filtered, $this->conf))
+                        ->filterTags($request[0], $casesensitive, $visibility)
+                    ;
                 }
                 if (!empty($request[1])) {
-                    $filtered = (new BookmarkFilter($filtered))->filterFulltext($request[1], $visibility);
+                    $filtered = (new BookmarkFilter($filtered, $this->conf))
+                        ->filterFulltext($request[1], $visibility)
+                    ;
                 }
                 return $filtered;
             case self::$FILTER_TEXT:
@@ -128,13 +144,13 @@ class BookmarkFilter
      *
      * @return Bookmark[] filtered bookmarks.
      */
-    private function noFilter($visibility = 'all')
+    private function noFilter(string $visibility = 'all')
     {
         if ($visibility === 'all') {
             return $this->bookmarks;
         }
 
-        $out = array();
+        $out = [];
         foreach ($this->bookmarks as $key => $value) {
             if ($value->isPrivate() && $visibility === 'private') {
                 $out[$key] = $value;
@@ -151,11 +167,11 @@ class BookmarkFilter
      *
      * @param string $smallHash permalink hash.
      *
-     * @return array $filtered array containing permalink data.
+     * @return Bookmark[] $filtered array containing permalink data.
      *
-     * @throws \Shaarli\Bookmark\Exception\BookmarkNotFoundException if the smallhash doesn't match any link.
+     * @throws BookmarkNotFoundException if the smallhash doesn't match any link.
      */
-    private function filterSmallHash($smallHash)
+    private function filterSmallHash(string $smallHash)
     {
         foreach ($this->bookmarks as $key => $l) {
             if ($smallHash == $l->getShortUrl()) {
@@ -186,15 +202,15 @@ class BookmarkFilter
      * @param string $searchterms search query.
      * @param string $visibility  Optional: return only all/private/public bookmarks.
      *
-     * @return array search results.
+     * @return Bookmark[] search results.
      */
-    private function filterFulltext($searchterms, $visibility = 'all')
+    private function filterFulltext(string $searchterms, string $visibility = 'all')
     {
         if (empty($searchterms)) {
             return $this->noFilter($visibility);
         }
 
-        $filtered = array();
+        $filtered = [];
         $search = mb_convert_case(html_entity_decode($searchterms), MB_CASE_LOWER, 'UTF-8');
         $exactRegex = '/"([^"]+)"/';
         // Retrieve exact search terms.
@@ -206,8 +222,8 @@ class BookmarkFilter
         $explodedSearchAnd = array_values(array_filter($explodedSearchAnd));
 
         // Filter excluding terms and update andSearch.
-        $excludeSearch = array();
-        $andSearch = array();
+        $excludeSearch = [];
+        $andSearch = [];
         foreach ($explodedSearchAnd as $needle) {
             if ($needle[0] == '-' && strlen($needle) > 1) {
                 $excludeSearch[] = substr($needle, 1);
@@ -227,33 +243,38 @@ class BookmarkFilter
                 }
             }
 
-            // Concatenate link fields to search across fields.
-            // Adds a '\' separator for exact search terms.
-            $content  = mb_convert_case($link->getTitle(), MB_CASE_LOWER, 'UTF-8') .'\\';
-            $content .= mb_convert_case($link->getDescription(), MB_CASE_LOWER, 'UTF-8') .'\\';
-            $content .= mb_convert_case($link->getUrl(), MB_CASE_LOWER, 'UTF-8') .'\\';
-            $content .= mb_convert_case($link->getTagsString(), MB_CASE_LOWER, 'UTF-8') .'\\';
+            $lengths = [];
+            $content = $this->buildFullTextSearchableLink($link, $lengths);
 
             // Be optimistic
             $found = true;
+            $foundPositions = [];
 
             // First, we look for exact term search
-            for ($i = 0; $i < count($exactSearch) && $found; $i++) {
-                $found = strpos($content, $exactSearch[$i]) !== false;
-            }
-
-            // Iterate over keywords, if keyword is not found,
+            // Then iterate over keywords, if keyword is not found,
             // no need to check for the others. We want all or nothing.
-            for ($i = 0; $i < count($andSearch) && $found; $i++) {
-                $found = strpos($content, $andSearch[$i]) !== false;
+            foreach ([$exactSearch, $andSearch] as $search) {
+                for ($i = 0; $i < count($search) && $found !== false; $i++) {
+                    $found = mb_strpos($content, $search[$i]);
+                    if ($found === false) {
+                        break;
+                    }
+
+                    $foundPositions[] = ['start' => $found, 'end' => $found + mb_strlen($search[$i])];
+                }
             }
 
             // Exclude terms.
-            for ($i = 0; $i < count($excludeSearch) && $found; $i++) {
+            for ($i = 0; $i < count($excludeSearch) && $found !== false; $i++) {
                 $found = strpos($content, $excludeSearch[$i]) === false;
             }
 
-            if ($found) {
+            if ($found !== false) {
+                $link->addAdditionalContentEntry(
+                    'search_highlight',
+                    $this->postProcessFoundPositions($lengths, $foundPositions)
+                );
+
                 $filtered[$id] = $link;
             }
         }
@@ -268,8 +289,9 @@ class BookmarkFilter
      *
      * @return string generated regex fragment
      */
-    private static function tag2regex($tag)
+    protected function tag2regex(string $tag): string
     {
+        $tagsSeparator = $this->conf->get('general.tags_separator', ' ');
         $len = strlen($tag);
         if (!$len || $tag === "-" || $tag === "*") {
             // nothing to search, return empty regex
@@ -283,12 +305,13 @@ class BookmarkFilter
             $i = 0; // start at first character
             $regex = '(?='; // use positive lookahead
         }
-        $regex .= '.*(?:^| )'; // before tag may only be a space or the beginning
+        // before tag may only be the separator or the beginning
+        $regex .= '.*(?:^|' . $tagsSeparator . ')';
         // iterate over string, separating it into placeholder and content
         for (; $i < $len; $i++) {
             if ($tag[$i] === '*') {
                 // placeholder found
-                $regex .= '[^ ]*?';
+                $regex .= '[^' . $tagsSeparator . ']*?';
             } else {
                 // regular characters
                 $offset = strpos($tag, '*', $i);
@@ -304,7 +327,8 @@ class BookmarkFilter
                 $i = $offset;
             }
         }
-        $regex .= '(?:$| ))'; // after the tag may only be a space or the end
+        // after the tag may only be the separator or the end
+        $regex .= '(?:$|' . $tagsSeparator . '))';
         return $regex;
     }
 
@@ -314,22 +338,23 @@ class BookmarkFilter
      * You can specify one or more tags, separated by space or a comma, e.g.
      *  print_r($mydb->filterTags('linux programming'));
      *
-     * @param string $tags          list of tags separated by commas or blank spaces.
-     * @param bool   $casesensitive ignore case if false.
-     * @param string $visibility    Optional: return only all/private/public bookmarks.
+     * @param string|array $tags          list of tags, separated by commas or blank spaces if passed as string.
+     * @param bool         $casesensitive ignore case if false.
+     * @param string       $visibility    Optional: return only all/private/public bookmarks.
      *
-     * @return array filtered bookmarks.
+     * @return Bookmark[] filtered bookmarks.
      */
-    public function filterTags($tags, $casesensitive = false, $visibility = 'all')
+    public function filterTags($tags, bool $casesensitive = false, string $visibility = 'all')
     {
+        $tagsSeparator = $this->conf->get('general.tags_separator', ' ');
         // get single tags (we may get passed an array, even though the docs say different)
         $inputTags = $tags;
         if (!is_array($tags)) {
             // we got an input string, split tags
-            $inputTags = preg_split('/(?:\s+)|,/', $inputTags, -1, PREG_SPLIT_NO_EMPTY);
+            $inputTags = tags_str2array($inputTags, $tagsSeparator);
         }
 
-        if (!count($inputTags)) {
+        if (count($inputTags) === 0) {
             // no input tags
             return $this->noFilter($visibility);
         }
@@ -346,7 +371,7 @@ class BookmarkFilter
         }
 
         // build regex from all tags
-        $re = '/^' . implode(array_map("self::tag2regex", $inputTags)) . '.*$/';
+        $re = '/^' . implode(array_map([$this, 'tag2regex'], $inputTags)) . '.*$/';
         if (!$casesensitive) {
             // make regex case insensitive
             $re .= 'i';
@@ -366,10 +391,11 @@ class BookmarkFilter
                     continue;
                 }
             }
-            $search = $link->getTagsString(); // build search string, start with tags of current link
+            // build search string, start with tags of current link
+            $search = $link->getTagsString($tagsSeparator);
             if (strlen(trim($link->getDescription())) && strpos($link->getDescription(), '#') !== false) {
                 // description given and at least one possible tag found
-                $descTags = array();
+                $descTags = [];
                 // find all tags in the form of #tag in the description
                 preg_match_all(
                     '/(?<![' . self::$HASHTAG_CHARS . '])#([' . self::$HASHTAG_CHARS . ']+?)\b/sm',
@@ -378,9 +404,9 @@ class BookmarkFilter
                 );
                 if (count($descTags[1])) {
                     // there were some tags in the description, add them to the search string
-                    $search .= ' ' . implode(' ', $descTags[1]);
+                    $search .= $tagsSeparator . tags_array2str($descTags[1], $tagsSeparator);
                 }
-            };
+            }
             // match regular expression with search string
             if (!preg_match($re, $search)) {
                 // this entry does _not_ match our regex
@@ -396,9 +422,9 @@ class BookmarkFilter
      *
      * @param string $visibility return only all/private/public bookmarks.
      *
-     * @return array filtered bookmarks.
+     * @return Bookmark[] filtered bookmarks.
      */
-    public function filterUntagged($visibility)
+    public function filterUntagged(string $visibility)
     {
         $filtered = [];
         foreach ($this->bookmarks as $key => $link) {
@@ -410,7 +436,7 @@ class BookmarkFilter
                 }
             }
 
-            if (empty(trim($link->getTagsString()))) {
+            if (empty($link->getTags())) {
                 $filtered[$key] = $link;
             }
         }
@@ -427,11 +453,11 @@ class BookmarkFilter
      * @param string $day day to filter.
      * @param string $visibility return only all/private/public bookmarks.
 
-     * @return array all link matching given day.
+     * @return Bookmark[] all link matching given day.
      *
      * @throws Exception if date format is invalid.
      */
-    public function filterDay($day, $visibility)
+    public function filterDay(string $day, string $visibility)
     {
         if (!checkDateFormat('Ymd', $day)) {
             throw new Exception('Invalid date format');
@@ -460,14 +486,85 @@ class BookmarkFilter
      * @param string $tags          string containing a list of tags.
      * @param bool   $casesensitive will convert everything to lowercase if false.
      *
-     * @return array filtered tags string.
+     * @return string[] filtered tags string.
      */
-    public static function tagsStrToArray($tags, $casesensitive)
+    public static function tagsStrToArray(string $tags, bool $casesensitive): array
     {
         // We use UTF-8 conversion to handle various graphemes (i.e. cyrillic, or greek)
         $tagsOut = $casesensitive ? $tags : mb_convert_case($tags, MB_CASE_LOWER, 'UTF-8');
         $tagsOut = str_replace(',', ' ', $tagsOut);
 
         return preg_split('/\s+/', $tagsOut, -1, PREG_SPLIT_NO_EMPTY);
+    }
+
+    /**
+     * This method finalize the content of the foundPositions array,
+     * by associated all search results to their associated bookmark field,
+     * making sure that there is no overlapping results, etc.
+     *
+     * @param array $fieldLengths   Start and end positions of every bookmark fields in the aggregated bookmark content.
+     * @param array $foundPositions Positions where the search results were found in the aggregated content.
+     *
+     * @return array Updated $foundPositions, by bookmark field.
+     */
+    protected function postProcessFoundPositions(array $fieldLengths, array $foundPositions): array
+    {
+        // Sort results by starting position ASC.
+        usort($foundPositions, function (array $entryA, array $entryB): int {
+            return $entryA['start'] > $entryB['start'] ? 1 : -1;
+        });
+
+        $out = [];
+        $currentMax = -1;
+        foreach ($foundPositions as $foundPosition) {
+            // we do not allow overlapping highlights
+            if ($foundPosition['start'] < $currentMax) {
+                continue;
+            }
+
+            $currentMax = $foundPosition['end'];
+            foreach ($fieldLengths as $part => $length) {
+                if ($foundPosition['start'] < $length['start'] || $foundPosition['start'] > $length['end']) {
+                    continue;
+                }
+
+                $out[$part][] = [
+                    'start' => $foundPosition['start'] - $length['start'],
+                    'end' => $foundPosition['end'] - $length['start'],
+                ];
+                break;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Concatenate link fields to search across fields. Adds a '\' separator for exact search terms.
+     * Also populate $length array with starting and ending positions of every bookmark field
+     * inside concatenated content.
+     *
+     * @param Bookmark $link
+     * @param array    $lengths (by reference)
+     *
+     * @return string Lowercase concatenated fields content.
+     */
+    protected function buildFullTextSearchableLink(Bookmark $link, array &$lengths): string
+    {
+        $tagString = $link->getTagsString($this->conf->get('general.tags_separator', ' '));
+        $content  = mb_convert_case($link->getTitle(), MB_CASE_LOWER, 'UTF-8') . '\\';
+        $content .= mb_convert_case($link->getDescription(), MB_CASE_LOWER, 'UTF-8') . '\\';
+        $content .= mb_convert_case($link->getUrl(), MB_CASE_LOWER, 'UTF-8') . '\\';
+        $content .= mb_convert_case($tagString, MB_CASE_LOWER, 'UTF-8') . '\\';
+
+        $lengths['title'] = ['start' => 0, 'end' => mb_strlen($link->getTitle())];
+        $nextField = $lengths['title']['end'] + 1;
+        $lengths['description'] = ['start' => $nextField, 'end' => $nextField + mb_strlen($link->getDescription())];
+        $nextField = $lengths['description']['end'] + 1;
+        $lengths['url'] = ['start' => $nextField, 'end' => $nextField + mb_strlen($link->getUrl())];
+        $nextField = $lengths['url']['end'] + 1;
+        $lengths['tags'] = ['start' => $nextField, 'end' => $nextField + mb_strlen($tagString)];
+
+        return $content;
     }
 }

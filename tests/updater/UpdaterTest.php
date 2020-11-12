@@ -2,6 +2,7 @@
 namespace Shaarli\Updater;
 
 use Exception;
+use malkusch\lock\mutex\NoMutex;
 use Shaarli\Bookmark\BookmarkFileService;
 use Shaarli\Bookmark\BookmarkServiceInterface;
 use Shaarli\Config\ConfigManager;
@@ -44,12 +45,13 @@ class UpdaterTest extends TestCase
      */
     protected function setUp(): void
     {
+        $mutex = new NoMutex();
         $this->refDB = new \ReferenceLinkDB();
         $this->refDB->write(self::$testDatastore);
 
         copy('tests/utils/config/configJson.json.php', self::$configFile .'.json.php');
         $this->conf = new ConfigManager(self::$configFile);
-        $this->bookmarkService = new BookmarkFileService($this->conf, $this->createMock(History::class), true);
+        $this->bookmarkService = new BookmarkFileService($this->conf, $this->createMock(History::class), $mutex, true);
         $this->updater = new Updater([], $this->bookmarkService, $this->conf, true);
     }
 
@@ -58,10 +60,10 @@ class UpdaterTest extends TestCase
      */
     public function testReadEmptyUpdatesFile()
     {
-        $this->assertEquals(array(), UpdaterUtils::read_updates_file(''));
+        $this->assertEquals(array(), UpdaterUtils::readUpdatesFile(''));
         $updatesFile = $this->conf->get('resource.data_dir') . '/updates.txt';
         touch($updatesFile);
-        $this->assertEquals(array(), UpdaterUtils::read_updates_file($updatesFile));
+        $this->assertEquals(array(), UpdaterUtils::readUpdatesFile($updatesFile));
         unlink($updatesFile);
     }
 
@@ -73,14 +75,14 @@ class UpdaterTest extends TestCase
         $updatesFile = $this->conf->get('resource.data_dir') . '/updates.txt';
         $updatesMethods = array('m1', 'm2', 'm3');
 
-        UpdaterUtils::write_updates_file($updatesFile, $updatesMethods);
-        $readMethods = UpdaterUtils::read_updates_file($updatesFile);
+        UpdaterUtils::writeUpdatesFile($updatesFile, $updatesMethods);
+        $readMethods = UpdaterUtils::readUpdatesFile($updatesFile);
         $this->assertEquals($readMethods, $updatesMethods);
 
         // Update
         $updatesMethods[] = 'm4';
-        UpdaterUtils::write_updates_file($updatesFile, $updatesMethods);
-        $readMethods = UpdaterUtils::read_updates_file($updatesFile);
+        UpdaterUtils::writeUpdatesFile($updatesFile, $updatesMethods);
+        $readMethods = UpdaterUtils::readUpdatesFile($updatesFile);
         $this->assertEquals($readMethods, $updatesMethods);
         unlink($updatesFile);
     }
@@ -93,7 +95,7 @@ class UpdaterTest extends TestCase
         $this->expectException(\Exception::class);
         $this->expectExceptionMessageRegExp('/Updates file path is not set(.*)/');
 
-        UpdaterUtils::write_updates_file('', array('test'));
+        UpdaterUtils::writeUpdatesFile('', array('test'));
     }
 
     /**
@@ -108,7 +110,7 @@ class UpdaterTest extends TestCase
         touch($updatesFile);
         chmod($updatesFile, 0444);
         try {
-            @UpdaterUtils::write_updates_file($updatesFile, array('test'));
+            @UpdaterUtils::writeUpdatesFile($updatesFile, array('test'));
         } catch (Exception $e) {
             unlink($updatesFile);
             throw $e;

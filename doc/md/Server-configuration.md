@@ -40,6 +40,8 @@ Supported PHP versions:
 
 Version | Status | Shaarli compatibility
 :---:|:---:|:---:
+8.0 | Supported | Yes
+7.4 | Supported | Yes
 7.3 | Supported | Yes
 7.2 | Supported | Yes
 7.1 | Supported | Yes
@@ -53,7 +55,7 @@ Required PHP extensions:
 
 Extension | Required? | Usage
 ---|:---:|---
-[`openssl`](http://php.net/manual/en/book.openssl.php) | requires | OpenSSL, HTTPS
+[`openssl`](http://php.net/manual/en/book.openssl.php) | required | OpenSSL, HTTPS
 [`php-json`](http://php.net/manual/en/book.json.php) | required | configuration parsing
 [`php-simplexml`](https://www.php.net/manual/en/book.simplexml.php) | required | REST API (Slim framework)
 [`php-mbstring`](http://php.net/manual/en/book.mbstring.php) | CentOS, Fedora, RHEL, Windows, some hosting providers | multibyte (Unicode) string support
@@ -191,19 +193,24 @@ sudo nano /etc/apache2/sites-available/shaarli.mydomain.org.conf
         Require all granted
     </Directory>
 
-    <LocationMatch "/\.">
-        # Prevent accessing dotfiles
-        RedirectMatch 404 ".*"
-    </LocationMatch>
+    # BE CAREFUL: directives order matter!
 
-    <LocationMatch "\.(?:ico|css|js|gif|jpe?g|png)$">
+    <FilesMatch ".*\.(?!(ico|css|js|gif|jpe?g|png|ttf|oet|woff2?)$)[^\.]*$">
+        Require all denied
+    </FilesMatch>
+
+    <Files "index.php">
+        Require all granted
+    </Files>
+
+    <FilesMatch "\.(?:ico|css|js|gif|jpe?g|png|ttf|oet|woff2)$">
         # allow client-side caching of static files
         Header set Cache-Control "max-age=2628000, public, must-revalidate, proxy-revalidate"
-    </LocationMatch>
+    </FilesMatch>
+
 
     # serve the Shaarli favicon from its custom location
     Alias favicon.ico /var/www/shaarli.mydomain.org/images/favicon.ico
-
 </VirtualHost>
 ```
 
@@ -294,7 +301,7 @@ server {
     location / {
         # default index file when no file URI is requested
         index index.php;
-        try_files $uri /index.php$is_args$args;
+        try_files _ /index.php$is_args$args;
     }
 
     location ~ (index)\.php$ {
@@ -307,20 +314,9 @@ server {
         include        fastcgi.conf;
     }
 
-    location ~ \.php$ {
-        # deny access to all other PHP scripts
-        # disable this if you host other PHP applications on the same virtualhost
-        deny all;
-    }
-
-    location ~ /\. {
-        # deny access to dotfiles
-        deny all;
-    }
-
-    location ~ ~$ {
-        # deny access to temp editor files, e.g. "script.php~"
-        deny all;
+    location ~ /doc/html/ {
+        default_type "text/html";
+        try_files $uri $uri/ $uri.html =404;
     }
 
     location = /favicon.ico {
@@ -329,13 +325,12 @@ server {
     }
 
     # allow client-side caching of static files
-    location ~* \.(?:ico|css|js|gif|jpe?g|png)$ {
+    location ~* \.(?:ico|css|js|gif|jpe?g|png|ttf|oet|woff2?)$ {
         expires    max;
         add_header Cache-Control "public, must-revalidate, proxy-revalidate";
         # HTTP 1.0 compatibility
         add_header Pragma public;
     }
-
 }
 ```
 
@@ -360,7 +355,23 @@ sudo systemctl reload nginx
 
 If Shaarli is hosted on a server behind a [reverse proxy](https://en.wikipedia.org/wiki/Reverse_proxy) (i.e. there is a proxy server between clients and the web server hosting Shaarli), configure it accordingly. See [Reverse proxy](Reverse-proxy.md) configuration.
 
+## Using Shaarli without URL rewriting
 
+By default, Shaarli uses Slim framework's URL, which requires
+URL rewriting.
+
+If you can't use URL rewriting for any reason (not supported by
+your web server, shared hosting, etc.), you *can* use Shaarli
+without URL rewriting.
+
+You just need to prefix your URL by `/index.php/`.
+Example: instead of accessing `https://shaarli.mydomain.org/`,
+use `https://shaarli.mydomain.org/index.php/`.
+
+**Recommended:**
+  * after installation, in the configuration page, set your header link to `/index.php/`.
+  * in your configuration file `config.json.php` set `general.root_url` to
+    `https://shaarli.mydomain.org/index.php/`.
 
 ## Allow import of large browser bookmarks export
 
@@ -421,7 +432,7 @@ By default Shaarli already disallows indexing of your local copy of the document
 before = common.conf
 [Definition]
 failregex = \s-\s<HOST>\s-\sLogin failed for user.*$
-ignoreregex = 
+ignoreregex =
 ```
 
 ```ini

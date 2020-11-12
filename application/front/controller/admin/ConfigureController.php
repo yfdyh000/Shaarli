@@ -30,7 +30,7 @@ class ConfigureController extends ShaarliAdminController
             'theme_available',
             ThemeUtils::getThemes($this->container->conf->get('resource.raintpl_tpl'))
         );
-        $this->assignView('formatter_available', ['default', 'markdown']);
+        $this->assignView('formatter_available', ['default', 'markdown', 'markdownExtra']);
         list($continents, $cities) = generateTimeZoneData(
             timezone_identifiers_list(),
             $this->container->conf->get('general.timezone')
@@ -51,7 +51,10 @@ class ConfigureController extends ShaarliAdminController
         $this->assignView('languages', Languages::getAvailableLanguages());
         $this->assignView('gd_enabled', extension_loaded('gd'));
         $this->assignView('thumbnails_mode', $this->container->conf->get('thumbnails.mode', Thumbnailer::MODE_NONE));
-        $this->assignView('pagetitle', t('Configure') .' - '. $this->container->conf->get('general.title', 'Shaarli'));
+        $this->assignView(
+            'pagetitle',
+            t('Configure') . ' - ' . $this->container->conf->get('general.title', 'Shaarli')
+        );
 
         return $response->write($this->render(TemplatePage::CONFIGURE));
     }
@@ -95,12 +98,15 @@ class ConfigureController extends ShaarliAdminController
         }
 
         $thumbnailsMode = extension_loaded('gd') ? $request->getParam('enableThumbnails') : Thumbnailer::MODE_NONE;
-        if ($thumbnailsMode !== Thumbnailer::MODE_NONE
+        if (
+            $thumbnailsMode !== Thumbnailer::MODE_NONE
             && $thumbnailsMode !== $this->container->conf->get('thumbnails.mode', Thumbnailer::MODE_NONE)
         ) {
             $this->saveWarningMessage(
                 t('You have enabled or changed thumbnails mode.') .
-                '<a href="'. $this->container->basePath .'/admin/thumbnails">' . t('Please synchronize them.') .'</a>'
+                '<a href="' . $this->container->basePath . '/admin/thumbnails">' .
+                    t('Please synchronize them.') .
+                '</a>'
             );
         }
         $this->container->conf->set('thumbnails.mode', $thumbnailsMode);

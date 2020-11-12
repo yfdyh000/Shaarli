@@ -2,7 +2,7 @@
 
 namespace Shaarli\Bookmark;
 
-use Exception;
+use malkusch\lock\mutex\NoMutex;
 use ReferenceLinkDB;
 use Shaarli\Config\ConfigManager;
 use Shaarli\History;
@@ -37,13 +37,14 @@ class BookmarkFilterTest extends TestCase
      */
     public static function setUpBeforeClass(): void
     {
+        $mutex = new NoMutex();
         $conf = new ConfigManager('tests/utils/config/configJson');
         $conf->set('resource.datastore', self::$testDatastore);
         self::$refDB = new \ReferenceLinkDB();
         self::$refDB->write(self::$testDatastore);
         $history = new History('sandbox/history.php');
-        self::$bookmarkService = new \FakeBookmarkService($conf, $history, true);
-        self::$linkFilter = new BookmarkFilter(self::$bookmarkService->getBookmarks());
+        self::$bookmarkService = new \FakeBookmarkService($conf, $history, $mutex, true);
+        self::$linkFilter = new BookmarkFilter(self::$bookmarkService->getBookmarks(), $conf);
     }
 
     /**
@@ -522,5 +523,44 @@ class BookmarkFilterTest extends TestCase
                 'private'
             ))
         );
+    }
+
+    /**
+     * Test search result highlights in every field of bookmark reference #9.
+     */
+    public function testFullTextSearchHighlight(): void
+    {
+        $bookmarks = self::$linkFilter->filter(
+            BookmarkFilter::$FILTER_TEXT,
+            '"psr-2" coding guide http fig "psr-2/" "This guide" basic standard. coding-style quality assurance'
+        );
+
+        static::assertCount(1, $bookmarks);
+        static::assertArrayHasKey(9, $bookmarks);
+
+        $bookmark = $bookmarks[9];
+        $expectedHighlights = [
+            'title' => [
+                ['start' => 0, 'end' => 5], // "psr-2"
+                ['start' => 7, 'end' => 13], // coding
+                ['start' => 20, 'end' => 25], // guide
+            ],
+            'description' => [
+                ['start' => 0, 'end' => 10], // "This guide"
+                ['start' => 45, 'end' => 50], // basic
+                ['start' => 58, 'end' => 67], // standard.
+            ],
+            'url' => [
+                ['start' => 0, 'end' => 4], // http
+                ['start' => 15, 'end' => 18], // fig
+                ['start' => 27, 'end' => 33], // "psr-2/"
+            ],
+            'tags' => [
+                ['start' => 0, 'end' => 12], // coding-style
+                ['start' => 23, 'end' => 30], // quality
+                ['start' => 31, 'end' => 40], // assurance
+            ],
+        ];
+        static::assertSame($expectedHighlights, $bookmark->getAdditionalContentEntry('search_highlight'));
     }
 }
