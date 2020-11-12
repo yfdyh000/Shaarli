@@ -1,6 +1,8 @@
 <?php
+
 namespace Shaarli\Api;
 
+use malkusch\lock\mutex\FlockMutex;
 use Shaarli\Api\Exceptions\ApiAuthorizationException;
 use Shaarli\Api\Exceptions\ApiException;
 use Shaarli\Bookmark\BookmarkFileService;
@@ -107,7 +109,8 @@ class ApiMiddleware
      */
     protected function checkToken($request)
     {
-        if (!$request->hasHeader('Authorization')
+        if (
+            !$request->hasHeader('Authorization')
             && !isset($this->container->environment['REDIRECT_HTTP_AUTHORIZATION'])
         ) {
             throw new ApiAuthorizationException('JWT token not provided');
@@ -143,6 +146,7 @@ class ApiMiddleware
         $linkDb = new BookmarkFileService(
             $conf,
             $this->container->get('history'),
+            new FlockMutex(fopen(SHAARLI_MUTEX_FILE, 'r'), 2),
             true
         );
         $this->container['db'] = $linkDb;

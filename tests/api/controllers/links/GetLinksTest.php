@@ -1,6 +1,7 @@
 <?php
 namespace Shaarli\Api\Controllers;
 
+use malkusch\lock\mutex\NoMutex;
 use Shaarli\Bookmark\Bookmark;
 use Shaarli\Bookmark\BookmarkFileService;
 use Shaarli\Bookmark\LinkDB;
@@ -57,6 +58,7 @@ class GetLinksTest extends \Shaarli\TestCase
      */
     protected function setUp(): void
     {
+        $mutex = new NoMutex();
         $this->conf = new ConfigManager('tests/utils/config/configJson');
         $this->conf->set('resource.datastore', self::$testDatastore);
         $this->refDB = new \ReferenceLinkDB();
@@ -65,7 +67,7 @@ class GetLinksTest extends \Shaarli\TestCase
 
         $this->container = new Container();
         $this->container['conf'] = $this->conf;
-        $this->container['db'] = new BookmarkFileService($this->conf, $history, true);
+        $this->container['db'] = new BookmarkFileService($this->conf, $history, $mutex, true);
         $this->container['history'] = null;
 
         $this->controller = new Links($this->container);
@@ -396,7 +398,7 @@ class GetLinksTest extends \Shaarli\TestCase
         $response = $this->controller->getLinks($request, new Response());
         $this->assertEquals(200, $response->getStatusCode());
         $data = json_decode((string) $response->getBody(), true);
-        $this->assertEquals(4, count($data));
+        $this->assertEquals(5, count($data));
         $this->assertEquals(6, $data[0]['id']);
 
         // wildcard: placeholder at the middle

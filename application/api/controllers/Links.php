@@ -96,11 +96,12 @@ class Links extends ApiController
      */
     public function getLink($request, $response, $args)
     {
-        if (!$this->bookmarkService->exists($args['id'])) {
+        $id = is_integer_mixed($args['id']) ? (int) $args['id'] : null;
+        if ($id === null || ! $this->bookmarkService->exists($id)) {
             throw new ApiLinkNotFoundException();
         }
         $index = index_url($this->ci['environment']);
-        $out = ApiUtils::formatLink($this->bookmarkService->get($args['id']), $index);
+        $out = ApiUtils::formatLink($this->bookmarkService->get($id), $index);
 
         return $response->withJson($out, 200, $this->jsonStyle);
     }
@@ -115,10 +116,11 @@ class Links extends ApiController
      */
     public function postLink($request, $response)
     {
-        $data = $request->getParsedBody();
-        $bookmark = ApiUtils::buildLinkFromRequest($data, $this->conf->get('privacy.default_private_links'));
+        $data = (array) ($request->getParsedBody() ?? []);
+        $bookmark = ApiUtils::buildBookmarkFromRequest($data, $this->conf->get('privacy.default_private_links'));
         // duplicate by URL, return 409 Conflict
-        if (! empty($bookmark->getUrl())
+        if (
+            ! empty($bookmark->getUrl())
             && ! empty($dup = $this->bookmarkService->findByUrl($bookmark->getUrl()))
         ) {
             return $response->withJson(
@@ -130,7 +132,7 @@ class Links extends ApiController
 
         $this->bookmarkService->add($bookmark);
         $out = ApiUtils::formatLink($bookmark, index_url($this->ci['environment']));
-        $redirect = $this->ci->router->relativePathFor('getLink', ['id' => $bookmark->getId()]);
+        $redirect = $this->ci->router->pathFor('getLink', ['id' => $bookmark->getId()]);
         return $response->withAddedHeader('Location', $redirect)
                         ->withJson($out, 201, $this->jsonStyle);
     }
@@ -148,18 +150,20 @@ class Links extends ApiController
      */
     public function putLink($request, $response, $args)
     {
-        if (! $this->bookmarkService->exists($args['id'])) {
+        $id = is_integer_mixed($args['id']) ? (int) $args['id'] : null;
+        if ($id === null || !$this->bookmarkService->exists($id)) {
             throw new ApiLinkNotFoundException();
         }
 
         $index = index_url($this->ci['environment']);
         $data = $request->getParsedBody();
 
-        $requestBookmark = ApiUtils::buildLinkFromRequest($data, $this->conf->get('privacy.default_private_links'));
+        $requestBookmark = ApiUtils::buildBookmarkFromRequest($data, $this->conf->get('privacy.default_private_links'));
         // duplicate URL on a different link, return 409 Conflict
-        if (! empty($requestBookmark->getUrl())
+        if (
+            ! empty($requestBookmark->getUrl())
             && ! empty($dup = $this->bookmarkService->findByUrl($requestBookmark->getUrl()))
-            && $dup->getId() != $args['id']
+            && $dup->getId() != $id
         ) {
             return $response->withJson(
                 ApiUtils::formatLink($dup, $index),
@@ -168,7 +172,7 @@ class Links extends ApiController
             );
         }
 
-        $responseBookmark = $this->bookmarkService->get($args['id']);
+        $responseBookmark = $this->bookmarkService->get($id);
         $responseBookmark = ApiUtils::updateLink($responseBookmark, $requestBookmark);
         $this->bookmarkService->set($responseBookmark);
 
@@ -189,10 +193,11 @@ class Links extends ApiController
      */
     public function deleteLink($request, $response, $args)
     {
-        if (! $this->bookmarkService->exists($args['id'])) {
+        $id = is_integer_mixed($args['id']) ? (int) $args['id'] : null;
+        if ($id === null || !$this->bookmarkService->exists($id)) {
             throw new ApiLinkNotFoundException();
         }
-        $bookmark = $this->bookmarkService->get($args['id']);
+        $bookmark = $this->bookmarkService->get($id);
         $this->bookmarkService->remove($bookmark);
 
         return $response->withStatus(204);

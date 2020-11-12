@@ -2,6 +2,7 @@
 
 namespace Shaarli\Api\Controllers;
 
+use malkusch\lock\mutex\NoMutex;
 use Shaarli\Bookmark\Bookmark;
 use Shaarli\Bookmark\BookmarkFileService;
 use Shaarli\Config\ConfigManager;
@@ -72,6 +73,7 @@ class PostLinkTest extends TestCase
      */
     protected function setUp(): void
     {
+        $mutex = new NoMutex();
         $this->conf = new ConfigManager('tests/utils/config/configJson');
         $this->conf->set('resource.datastore', self::$testDatastore);
         $this->refDB = new \ReferenceLinkDB();
@@ -79,7 +81,7 @@ class PostLinkTest extends TestCase
         $refHistory = new \ReferenceHistory();
         $refHistory->write(self::$testHistory);
         $this->history = new History(self::$testHistory);
-        $this->bookmarkService = new BookmarkFileService($this->conf, $this->history, true);
+        $this->bookmarkService = new BookmarkFileService($this->conf, $this->history, $mutex, true);
 
         $this->container = new Container();
         $this->container['conf'] = $this->conf;
@@ -90,8 +92,8 @@ class PostLinkTest extends TestCase
 
         $mock = $this->createMock(Router::class);
         $mock->expects($this->any())
-             ->method('relativePathFor')
-             ->willReturn('api/v1/bookmarks/1');
+             ->method('pathFor')
+             ->willReturn('/api/v1/bookmarks/1');
 
         // affect @property-read... seems to work
         $this->controller->getCi()->router = $mock;
@@ -126,7 +128,7 @@ class PostLinkTest extends TestCase
 
         $response = $this->controller->postLink($request, new Response());
         $this->assertEquals(201, $response->getStatusCode());
-        $this->assertEquals('api/v1/bookmarks/1', $response->getHeader('Location')[0]);
+        $this->assertEquals('/api/v1/bookmarks/1', $response->getHeader('Location')[0]);
         $data = json_decode((string) $response->getBody(), true);
         $this->assertEquals(self::NB_FIELDS_LINK, count($data));
         $this->assertEquals(43, $data['id']);
@@ -160,6 +162,8 @@ class PostLinkTest extends TestCase
             'description' => 'shaare description',
             'tags' => ['one', 'two'],
             'private' => true,
+            'created' => '2015-05-05T12:30:00+03:00',
+            'updated' => '2016-06-05T14:32:10+03:00',
         ];
         $env = Environment::mock([
             'REQUEST_METHOD' => 'POST',
@@ -171,7 +175,7 @@ class PostLinkTest extends TestCase
         $response = $this->controller->postLink($request, new Response());
 
         $this->assertEquals(201, $response->getStatusCode());
-        $this->assertEquals('api/v1/bookmarks/1', $response->getHeader('Location')[0]);
+        $this->assertEquals('/api/v1/bookmarks/1', $response->getHeader('Location')[0]);
         $data = json_decode((string) $response->getBody(), true);
         $this->assertEquals(self::NB_FIELDS_LINK, count($data));
         $this->assertEquals(43, $data['id']);
@@ -181,10 +185,8 @@ class PostLinkTest extends TestCase
         $this->assertEquals($link['description'], $data['description']);
         $this->assertEquals($link['tags'], $data['tags']);
         $this->assertEquals(true, $data['private']);
-        $this->assertTrue(
-            new \DateTime('2 seconds ago') < \DateTime::createFromFormat(\DateTime::ATOM, $data['created'])
-        );
-        $this->assertEquals('', $data['updated']);
+        $this->assertSame($link['created'], $data['created']);
+        $this->assertSame($link['updated'], $data['updated']);
     }
 
     /**

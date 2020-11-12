@@ -1,4 +1,5 @@
 <?php
+
 namespace Shaarli\Api;
 
 use Shaarli\Api\Exceptions\ApiAuthorizationException;
@@ -27,7 +28,7 @@ class ApiUtils
             throw new ApiAuthorizationException('Malformed JWT token');
         }
 
-        $genSign = Base64Url::encode(hash_hmac('sha512', $parts[0] .'.'. $parts[1], $secret, true));
+        $genSign = Base64Url::encode(hash_hmac('sha512', $parts[0] . '.' . $parts[1], $secret, true));
         if ($parts[2] != $genSign) {
             throw new ApiAuthorizationException('Invalid JWT signature');
         }
@@ -42,7 +43,8 @@ class ApiUtils
             throw new ApiAuthorizationException('Invalid JWT payload');
         }
 
-        if (empty($payload->iat)
+        if (
+            empty($payload->iat)
             || $payload->iat > time()
             || time() - $payload->iat > ApiMiddleware::$TOKEN_DURATION
         ) {
@@ -89,12 +91,12 @@ class ApiUtils
      * If no URL is provided, it will generate a local note URL.
      * If no title is provided, it will use the URL as title.
      *
-     * @param array  $input          Request Link.
-     * @param bool   $defaultPrivate Request Link.
+     * @param array|null  $input          Request Link.
+     * @param bool        $defaultPrivate Setting defined if a bookmark is private by default.
      *
      * @return Bookmark instance.
      */
-    public static function buildLinkFromRequest($input, $defaultPrivate)
+    public static function buildBookmarkFromRequest(?array $input, bool $defaultPrivate): Bookmark
     {
         $bookmark = new Bookmark();
         $url = ! empty($input['url']) ? cleanup_url($input['url']) : '';
@@ -109,6 +111,15 @@ class ApiUtils
         $bookmark->setDescription(! empty($input['description']) ? $input['description'] : '');
         $bookmark->setTags(! empty($input['tags']) ? $input['tags'] : []);
         $bookmark->setPrivate($private);
+
+        $created = \DateTime::createFromFormat(\DateTime::ATOM, $input['created'] ?? '');
+        if ($created instanceof \DateTimeInterface) {
+            $bookmark->setCreated($created);
+        }
+        $updated = \DateTime::createFromFormat(\DateTime::ATOM, $input['updated'] ?? '');
+        if ($updated instanceof \DateTimeInterface) {
+            $bookmark->setUpdated($updated);
+        }
 
         return $bookmark;
     }
