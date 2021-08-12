@@ -32,6 +32,11 @@ It runs the latest development version of Shaarli and is updated/reset daily.
 
 Login: `demo`; Password: `demo`
 
+### Deploy on Okteto cloud 
+[![Develop on Okteto](https://okteto.com/develop-okteto.svg)](https://cloud.okteto.com/deploy?repository=https://github.com/shaarli/Shaarli)
+
+You can log in to Okteto service via Github account, one-key to deploy this application for evaluate / develop. Free, credit not required. Application sleeping after 24 hours inactive, *namespaces will be deleted after 15 days of inactivity.* for free plan.
+
 ### License
 
 Shaarli is [Free Software](http://en.wikipedia.org/wiki/Free_software). See [COPYING](COPYING) for a detail of the contributors and licenses for each individual component.

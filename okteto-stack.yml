@@ -1,0 +1,22 @@
+---
+# Shaarli - Docker Compose example configuration
+# - https://shaarli.readthedocs.io/en/master/Docker/#docker-compose
+
+volumes:
+  shaarli-cache:
+  shaarli-data:
+
+endpoints:
+  - path: /
+    service: shaarli
+    port: 80
+
+services:
+  shaarli:
+    image: shaarli/shaarli
+    # build: ./
+    volumes:
+      - shaarli-cache:/var/www/shaarli/cache
+      - shaarli-data:/var/www/shaarli/data
+    ports:
+      - 80:80

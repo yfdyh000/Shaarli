@@ -43,6 +43,8 @@ See [Theming](Theming) for a list of community-contributed themes, and an instal
 - [Shaarli app for Cloudron](https://git.cloudron.io/cloudron/shaarli-app) - Effortlessly run Shaarli with the help of [Cloudron](https://cloudron.io/) [![Install](https://cloudron.io/img/button.svg)](https://cloudron.io/button.html?app=com.github.shaarli)
 - [Shaarli_ynh](https://github.com/YunoHost-Apps/shaarli_ynh) - Shaarli is available as a [Yunohost](https://yunohost.org) app [![Install Shaarli with YunoHost](https://install-app.yunohost.org/install-with-yunohost.png)](https://install-app.yunohost.org/?app=shaarli)
 - [pelican](https://blog.getpelican.com) static blog generator plugin to auto-post articles on a Shaarli instance: [shaarli_poster](https://github.com/getpelican/pelican-plugins/tree/master/shaarli_poster)
+- [Okteto cloud](https://cloud.okteto.com/) - You can log in to Okteto service via Github account, deploy applications for evaluate / develop. Free, credit not required. The Developer [plan](https://okteto.com/pricing/index.html) (free) includes like 5GB storage, application sleeping after 24 hours inactive, *namespaces will be deleted after 15 days of inactivity.* It also provides cool features like [build projects in the cloud](https://okteto.com/docs/cloud/build/).
+[![Develop on Okteto](https://okteto.com/develop-okteto.svg)](https://cloud.okteto.com/deploy?repository=https://github.com/shaarli/Shaarli)
 
 
 ### Mobile Apps
