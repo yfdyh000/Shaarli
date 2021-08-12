@@ -1,0 +1,26 @@
+---
+# Shaarli - Docker Compose example configuration
+# - https://shaarli.readthedocs.io/en/master/Docker/#docker-compose
+
+# Environment variables:
+# - SHAARLI_DOCKER_TAG        Shaarli docker tag to use
+#                             See: https://hub.docker.com/r/shaarli/shaarli/tags
+
+volumes:
+  shaarli-cache:
+  shaarli-data:
+
+endpoints:
+  - path: /
+    service: shaarli
+    port: 80
+
+services:
+  shaarli:
+    image: okteto.dev/shaarli
+    # build: ./
+    volumes:
+      - shaarli-cache:/var/www/shaarli/cache
+      - shaarli-data:/var/www/shaarli/data
+    ports:
+      - 80:80
