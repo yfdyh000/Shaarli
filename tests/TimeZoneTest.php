@@ -62,21 +62,21 @@ class TimeZoneTest extends TestCase
     {
         $expected = [
             'continents' => [
-                'Antarctica',
+                'America',
                 'Europe',
                 'UTC',
-                'selected' => 'Antarctica',
+                'selected' => 'America',
             ],
             'cities' => [
-                ['continent' => 'Antarctica', 'city' => 'Syowa'],
+                ['continent' => 'America', 'city' => 'Argentina/Buenos_Aires'],
                 ['continent' => 'Europe',     'city' => 'London'],
                 ['continent' => 'Europe',     'city' => 'Paris'],
                 ['continent' => 'UTC',        'city' => 'UTC'],
-                'selected'   => 'Syowa',
+                'selected'   => 'Argentina/Buenos_Aires',
             ]
         ];
 
-        list($continents, $cities) = generateTimeZoneData($this->installedTimezones, 'Antarctica/Syowa');
+        list($continents, $cities) = generateTimeZoneData($this->installedTimezones, 'America/Argentina/Buenos_Aires');
 
         $this->assertEquals($expected['continents'], $continents);
         $this->assertEquals($expected['cities'], $cities);
