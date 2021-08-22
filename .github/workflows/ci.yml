@@ -13,6 +13,7 @@ jobs:
           sudo locale-gen de_DE.utf8 && \
           sudo locale-gen en_US.utf8 && \
           sudo locale-gen fr_FR.utf8 && \
+          sudo locale-gen zh_CN.utf8 && \
           sudo dpkg-reconfigure --frontend=noninteractive locales
 
       - name: Install Gettext
